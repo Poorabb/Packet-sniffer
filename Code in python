@@ -1,0 +1,81 @@
+import argparse
+from scapy.all import sniff, IP, TCP, UDP, ARP, conf
+
+def capture_packets(packet_count, interface=None, timeout=30):
+ 
+    if interface:
+        conf.iface = interface
+        conf.sniff_promisc = True  
+        print(f"Sniffing on interface: {interface}")
+    else:
+        print("No interface specified, sniffing on default interface.")
+
+    packets = sniff(count=packet_count, iface=interface, timeout=timeout)
+    return packets
+
+def analyze_packets(packets):
+   
+    protocol_counts = {'TCP': 0, 'UDP': 0, 'ARP': 0, 'Other': 0}
+    
+    for packet in packets:
+        if packet.haslayer(TCP):
+            protocol_counts['TCP'] += 1
+        elif packet.haslayer(UDP):
+            protocol_counts['UDP'] += 1
+        elif packet.haslayer(ARP):
+            protocol_counts['ARP'] += 1
+        else:
+            protocol_counts['Other'] += 1
+    
+    return protocol_counts
+
+def detect_unusual_activity(packets):
+   
+    ip_counts = {}
+    unusual_activities = []
+    
+    for packet in packets:
+        if IP in packet:
+            ip = packet[IP].src
+            if ip in ip_counts:
+                ip_counts[ip] += 1
+            else:
+                ip_counts[ip] = 1
+    
+    for ip, count in ip_counts.items():
+        if count > 100:  
+            unusual_activities.append((ip, count))
+    
+    return unusual_activities
+
+def main(packet_count, interface=None, timeout=30):
+    
+    print("Capturing packets...")
+    packets = capture_packets(packet_count, interface, timeout)
+    
+    if not packets:
+        print("No packets captured.")
+        return
+    
+    print("Analyzing packets...")
+    protocol_counts = analyze_packets(packets)
+    print("Protocol counts:", protocol_counts)
+    
+    print("Detecting unusual activities...")
+    unusual_activities = detect_unusual_activity(packets)
+    if unusual_activities:
+        print("Unusual activities detected:")
+        for ip, count in unusual_activities:
+            print(f"IP: {ip}, Count: {count}")
+    else:
+        print("No unusual activities detected.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Network Traffic Analyzer")
+    parser.add_argument('-c', '--count', type=int, default=1000, help='Number of packets to capture')
+    parser.add_argument('-i', '--interface', type=str, default='wlan0', help='Network interface to capture packets from (e.g., wlan0 for wireless)')
+    parser.add_argument('-t', '--timeout', type=int, default=30, help='Timeout for packet capture in seconds')
+    
+    args = parser.parse_args()
+    
+    main(args.count, args.interface, args.timeout)
